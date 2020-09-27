@@ -23,3 +23,9 @@
 
   - `domRender()`：用于将元素渲染到父节点上去。和 `ReactDOM.render()` 等效。
 
+## 实现 this.setState()
+
+- 分析 `this.setState()` 的主要功能点：
+  - 修改 `state` 的值（对象合并）
+  - 重新渲染
+

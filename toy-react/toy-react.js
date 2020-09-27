@@ -1,8 +1,10 @@
+const RENDER_TO_DOM = Symbol("render to dom");
+
 export class Component {
     constructor() {
         this.props = Object.create(null);
         this.children = [];
-        this._root = null;
+        this._range = null;
     }
 
     setAttribute(name, value) {
@@ -13,13 +15,34 @@ export class Component {
         this.children.push(component);
     }
 
-    get root() {
-        if (!this._root) {
-            // render 是 react 中约定的方法 与 props 类似 
-            this._root = this.render().root;
+    [RENDER_TO_DOM](range) {
+        this._range = range;
+        range.deleteContents();
+        this.render()[RENDER_TO_DOM](range);
+    }
+
+    rerender() {
+        this[RENDER_TO_DOM](this._range);
+    }
+
+    setState(newState) {
+        if (this.state === null || typeof this.state !== "object") {
+            this.state = newState;
+            return;
         }
 
-        return this._root;
+        let merge = (oldState, newState) => {
+            for (let p in newState) {
+                if (oldState[p] === null || typeof oldState[p] !== "object") {
+                    oldState[p] = newState[p];
+                } else {
+                    merge(oldState[p], newState[p]);
+                }
+            }
+        }
+
+        merge(this.state, newState);
+        this.rerender();
     }
 }
 
@@ -29,17 +52,35 @@ class ElementWrapper {
     }
 
     setAttribute(name, value) {
-        this.root[name] = value;
+        if (name.match(/on([\s\S]+)/)) {
+            this.root.addEventListener(RegExp.$1.replace(/^[\s\S]/, n => n.toLowerCase()), value);
+        } else {
+            this.root[name] = value;
+        }
     }
 
     appendChild(component) {
-        this.root.appendChild(component.root);
+        if (component === null){
+            return;
+        }
+        let range = document.createRange();
+        range.setStart(this.root, this.root.childNodes.length);
+        range.setEnd(this.root, this.root.childNodes.length);
+        component[RENDER_TO_DOM](range);
+    }
+
+    [RENDER_TO_DOM](range) {
+        range.insertNode(this.root);
     }
 }
 
 class TextWrapper {
     constructor(content) {
         this.root = document.createTextNode(content);
+    }
+
+    [RENDER_TO_DOM](range) {
+        range.insertNode(this.root);
     }
 }
 
@@ -75,6 +116,11 @@ export function createElement(tagName, attributes, ...children) {
 }
 
 export function domRender(component, parentNode) {
-    parentNode.appendChild(component.root);
+    let range = document.createRange();
+    range.setStart(parentNode, 0);
+    range.setEnd(parentNode, parentNode.childNodes.length);
+    range.deleteContents();
+
+    component[RENDER_TO_DOM](range);
 }
 
